@@ -8,7 +8,10 @@ import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env'
+    }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -21,7 +24,7 @@ import { UserModule } from './user/user.module';
         database: config.get('DB_NAME'),
         autoLoadEntities: true,
         synchronize: true,
-        logging:true,
+        logging: true,
       })
     }),
     AuthModule, UserModule],
