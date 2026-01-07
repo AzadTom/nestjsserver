@@ -3,3 +3,9 @@ export class registerDto {
     email: string;
     password: string;
 }
+
+export class resetPasswordDto {
+    token: string;
+    password: string;
+    comfirmpassword: string;
+}

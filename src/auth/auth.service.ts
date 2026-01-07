@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { UserService } from 'src/user/user.service';
-import { registerDto } from './dto/register.dto';
+import { registerDto, resetPasswordDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
@@ -13,7 +14,7 @@ export class AuthService {
         const hashed_password = await bcrypt.hash(password, saltOrRounds);
 
         const isFoundUser = await this.userService.findUser(registerDto);
-        if(isFoundUser){
+        if (isFoundUser) {
             return {
                 message: 'User already exists'
             }
@@ -43,5 +44,38 @@ export class AuthService {
         return {
             message: 'Invalid credentials'
         }
+    }
+
+    async saveTokenByUser(token:string,email:string){
+        return await this.userService.saveTokenByUser(token,email);
+    }
+
+    async resetPassword(resetPasswordDto: resetPasswordDto) {
+
+        const { token, password, comfirmpassword } = resetPasswordDto;
+
+        if (password !== comfirmpassword) {
+            throw new BadRequestException('Passwords do not match');
+        }
+
+        const tokenHash = crypto
+            .createHash('sha256')
+            .update(token)
+            .digest('hex');
+
+        const user = await this.userService.findUserByToken(tokenHash);
+
+        if (!user) {
+            throw new BadRequestException('Invalid or expired token');
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user.password = hashedPassword;
+        user.resetPasswordTokenHash = null;
+        user.resetPasswordExpiresAt = null;
+        await this.userService.updateUser(user);
+
+        return true;
+
     }
 }
