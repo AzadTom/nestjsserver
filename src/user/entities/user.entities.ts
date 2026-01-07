@@ -22,11 +22,17 @@ export class User {
   @Column()
   password: string;
 
-  @Column({ name: 'reset_password_token_hash',type:'varchar', nullable: true })
+  @Column({ name: 'reset_password_token_hash', type: 'varchar', nullable: true })
   resetPasswordTokenHash: string | null;
 
   @Column({ name: 'reset_password_expires_at', type: 'timestamp', nullable: true })
   resetPasswordExpiresAt: Date | null;
+
+  @Column({ name: 'refreash_token_hash', type: 'varchar', nullable: true })
+  refreshTokenHash: string | null;
+
+  @Column({ name: 'refreash_token_expires_at', type: 'timestamp', nullable: true })
+  refreashTokenExpiresAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -34,5 +40,5 @@ export class User {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  
+
 }

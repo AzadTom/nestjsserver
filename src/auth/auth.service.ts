@@ -20,10 +20,23 @@ export class AuthService {
             }
         }
 
-        const user = await this.userService.createUser({ ...registerDto, password: hashed_password });
+        const user = await this.userService.createUser({ ...registerDto, password: hashed_password }); 
         const payload = { sub: user.id };
-        const token = await this.jwtService.signAsync(payload);
-        return { access_token: token };
+        const token = await this.jwtService.signAsync(payload, {
+            expiresIn: '15m'
+        });
+
+        const refreash_token = crypto.randomBytes(32).toString('hex');
+        const refreash_token_hash = crypto
+            .createHash('sha256')
+            .update(refreash_token)
+            .digest('hex');
+
+        const refreash_token_expires_At = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        user.refreshTokenHash = refreash_token_hash;
+        user.resetPasswordExpiresAt = refreash_token_expires_At;
+        this.userService.updateUser(user);
+        return { access_token: token, refreash_token: refreash_token_hash };
     }
 
     async signin(registerDto: registerDto) {
@@ -35,7 +48,18 @@ export class AuthService {
             if (isMatch) {
                 const payload = { sub: user.id };
                 const token = await this.jwtService.signAsync(payload);
-                return { access_token: token };
+
+                const refreash_token = crypto.randomBytes(32).toString('hex');
+                const refreash_token_hash = crypto
+                    .createHash('sha256')
+                    .update(refreash_token)
+                    .digest('hex');
+
+                const refreash_token_expires_At = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                user.refreshTokenHash = refreash_token_hash;
+                user.resetPasswordExpiresAt = refreash_token_expires_At;
+                this.userService.updateUser(user);
+                return { access_token: token, refreash_token: refreash_token_hash };
             }
             return {
                 message: 'Invalid credentials'
@@ -46,8 +70,8 @@ export class AuthService {
         }
     }
 
-    async saveTokenByUser(token:string,email:string){
-        return await this.userService.saveTokenByUser(token,email);
+    async saveTokenByUser(token: string, email: string) {
+        return await this.userService.saveTokenByUser(token, email);
     }
 
     async resetPassword(resetPasswordDto: resetPasswordDto) {
