@@ -2,79 +2,127 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Success</title>
+  <title>Password Reset Successful</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
+    * {
+      box-sizing: border-box;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
+      background: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #f4f6f8;
-      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      padding: 20px;
     }
 
     .card {
       background: #ffffff;
-      padding: 32px 36px;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      border-radius: 14px;
+      padding: 40px 32px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
       text-align: center;
-      max-width: 420px;
-      width: 100%;
     }
 
-    .icon {
-      font-size: 48px;
-      margin-bottom: 16px;
+    .icon-wrapper {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 20px;
+      border-radius: 50%;
+      background: rgba(44, 83, 100, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-wrapper svg {
+      width: 32px;
+      height: 32px;
+      stroke: #2c5364;
+      stroke-width: 2.5;
     }
 
     h1 {
       margin: 0;
-      font-size: 24px;
+      font-size: 26px;
+      font-weight: 600;
       color: #1f2937;
     }
 
-    p {
-      margin: 12px 0 24px;
+    .subtitle {
+      margin: 12px 0 28px;
       font-size: 15px;
       color: #6b7280;
+      line-height: 1.5;
     }
 
-    a {
-      display: inline-block;
-      padding: 10px 18px;
-      border-radius: 8px;
-      background: #2563eb;
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border-radius: 10px;
+      border: none;
+      background: #2c5364;
       color: #ffffff;
-      text-decoration: none;
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
     }
 
-    a:hover {
-      background: #1d4ed8;
+    .btn:hover {
+      background: #244654;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
     }
   </style>
 </head>
 
 <body>
-  <div class="card">
-    <div class="icon">✅</div>
+  <div class="container">
+    <div class="card">
 
-    <h1>Success</h1>
+      <div class="icon-wrapper">
+        <!-- Check Circle SVG (professional, accessible) -->
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      </div>
 
-    <p>
-      {{#if message}}
-        {{message}}
-      {{else}}
-        Your action was completed successfully.
-      {{/if}}
-    </p>
+      <h1>Password Updated</h1>
 
-    <a href="/login">Go to Login</a>
+      <p class="subtitle">
+        {{#if message}}
+          {{message}}
+        {{else}}
+          Your password has been reset successfully. You can now log in using your new credentials.
+        {{/if}}
+      </p>
+
+      <a href="/login">
+        <button class="btn">Go to Login</button>
+      </a>
+
+    </div>
   </div>
 </body>
 </html>
