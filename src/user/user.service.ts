@@ -46,6 +46,17 @@ export class UserService {
         return user;
     }
 
+    findUserByRefreashToken = async (tokenHash: string) => {
+
+        const user = await this.userRepository.findOne({
+            where: {
+                refreshTokenHash: tokenHash,
+                resetPasswordExpiresAt: MoreThan(new Date()),
+            },
+        });
+        return user;
+    }
+
     updateUser = async (user: User) => {
         return await this.userRepository.save(user);
     }

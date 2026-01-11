@@ -20,7 +20,7 @@ export class AuthService {
             }
         }
 
-        const user = await this.userService.createUser({ ...registerDto, password: hashed_password }); 
+        const user = await this.userService.createUser({ ...registerDto, password: hashed_password });
         const payload = { sub: user.id };
         const token = await this.jwtService.signAsync(payload, {
             expiresIn: '15m'
@@ -102,4 +102,32 @@ export class AuthService {
         return true;
 
     }
+
+    async getNewAccessToken(refreash_token: string) {
+
+        const user = await this.userService.findUserByRefreashToken(refreash_token);
+        if (user) {
+            const payload = { sub: user.id };
+            const token = await this.jwtService.signAsync(payload);
+            return { access_token: token };
+        }
+
+        return {
+            message: 'refreash_token expired',
+        }
+    }
+
+    async signout(token: string) {
+        const user = await this.userService.findUserByRefreashToken(token);
+        if (user) {
+            user.refreshTokenHash = null;
+            user.resetPasswordExpiresAt = null;
+            await this.userService.updateUser(user);
+        }
+        return {
+            message: 'User logged out successfully.'
+        }
+    }
+
+
 }

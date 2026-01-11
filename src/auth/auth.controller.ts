@@ -2,7 +2,7 @@ import { Body, Controller, Get, Headers, Param, Post, Redirect, Render, Req, Res
 import { AuthService } from './auth.service';
 import { registerDto, resetPasswordDto } from './dto/register.dto';
 import * as crypto from 'crypto';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { MailService } from 'src/mail/mail.service';
 
 @Controller('auth')
@@ -37,7 +37,7 @@ export class AuthController {
     @Redirect('/auth/success')
     async forget_password(@Body() resetPasswordDto: resetPasswordDto, @Res() res: Response) {
         return await this.authService.resetPassword(resetPasswordDto);
-        
+
     }
 
     @Get("/success")
@@ -47,26 +47,52 @@ export class AuthController {
     }
 
     @Post("/signup")
-    async signup(@Body() registerDto: registerDto) {
-        const result = await this.authService.signup(registerDto);
-        return result;
+    async signup(@Body() registerDto: registerDto, @Res({ passthrough: true }) res: Response) {
+        const { access_token, refreash_token, message } = await this.authService.signup(registerDto);
+        if (access_token && refreash_token) {
+            res.cookie('refreash_token', refreash_token, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'none',
+                path: '/'
+            });
+            return {
+                access_token
+            };
+        }
+        return {
+            message
+        };
     }
 
     @Post("/signin")
-    async singin(@Body() registerDto: registerDto) {
-        const result = await this.authService.signin(registerDto);
-        return result;
+    async singin(@Body() registerDto: registerDto, @Res({ passthrough: true }) res: Response) {
+        const { access_token, refreash_token, message } = await this.authService.signin(registerDto);
+
+        if (access_token && refreash_token) {
+            res.cookie('refreash_token', refreash_token, {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'none',
+                path: '/'
+            });
+            return {
+                access_token
+            };
+        }
+        return { message };
     }
 
     @Post("/signout")
-    async signout(@Body() registerDto: registerDto) {
+    async signout(@Req() req: Request) {
+        const token = req.cookies['refreash_token'];
+        this.authService.signout(token);
     }
 
     @Get("/refresh-token")
-    async refreashToken(){
-        
+    async refreashToken(@Req() req: Request) {
+        const token = req.cookies['refreash_token'];
+        this.authService.getNewAccessToken(token);
     }
-
-
 
 }
