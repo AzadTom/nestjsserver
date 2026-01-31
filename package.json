@@ -31,7 +31,7 @@
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "google-auth-library": "^10.5.0",
-    "google-spreadsheet": "^4.1.5",
+    "google-spreadsheet": "4.1.1",
     "hbs": "^4.2.0",
     "nodemailer": "^7.0.12",
     "pg": "^8.16.3",
