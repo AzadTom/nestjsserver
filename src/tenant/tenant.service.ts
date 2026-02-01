@@ -1,150 +1,260 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleSpreadsheet } from 'google-spreadsheet';
-import { JWT } from 'google-auth-library';
-import {  PaymentDto, SheetPayloadForRecordDto } from './dto/tenant.dto';
+import { google, sheets_v4 } from 'googleapis';
+import { PaymentDto, SheetPayloadForRecordDto } from './dto/tenant.dto';
 import { ColumnMapping, IUserInfo, toNumber, toString } from './utils/utils';
 
 @Injectable()
 export class TenantService {
 
-    private doc: GoogleSpreadsheet;
+    private sheets: sheets_v4.Sheets;
+    private initPromise: Promise<void>;
+
+    private readonly spreadsheetId = '1ejDVgXq8VLU9tWbOQpOEzkdJ08ixNtrz7vCHIWJXroA';
+
 
     constructor() {
-        this.loadDoc();
+        this.initPromise = this.init();
     }
 
-    async loadDoc() {
-        this.doc = new GoogleSpreadsheet("1ejDVgXq8VLU9tWbOQpOEzkdJ08ixNtrz7vCHIWJXroA", new JWT({
+    private async init() {
+        const auth = new google.auth.JWT({
             email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
             key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
             scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-        }));
-        await this.doc.loadInfo();
+        });
+        this.sheets = google.sheets({ version: 'v4', auth });
+    }
+
+    private async ready() {
+        await this.initPromise;
+    }
+
+    private async getSheetTitleById(sheetid: string) {
+        const result = await this.getTenantList();
+        const sheet = result.list?.find((item) => Number(item.id) === Number(sheetid));
+        return sheet?.name;
     }
 
 
     async getTenantList() {
-        const result = this.doc.sheetsByIndex.map((item) => ({ name: item.title, id: item.sheetId }));
+
+        await this.ready();
+        const res = await this.sheets.spreadsheets.get({
+            spreadsheetId: this.spreadsheetId,
+            fields: "sheets.properties",
+        });
+        const list = res.data.sheets?.map((s) => ({
+            name: s.properties?.title,
+            id: s.properties?.sheetId,
+        }));
+        return { list: list };
+    }
+
+    async getDetailById(sheetid: string) {
+        await this.ready();
+        const sheetTitle = await this.getSheetTitleById(sheetid);
+        const res = await this.sheets.spreadsheets.values.get({
+            spreadsheetId: this.spreadsheetId,
+            range: `${sheetTitle}!A1:Z1000`,
+        });
+
+        const rows = res.data.values;
+        if (!rows || rows.length < 2) return { list: [] };
+
+        const headers = rows[0];
+        const dataRows = rows.slice(1);
+        const getIndex = (key: string) => headers.indexOf(key);
+
+        const result = dataRows.map<IUserInfo>(row => ({
+            serial: toNumber(row[getIndex(ColumnMapping.serial)]),
+            payment: toNumber(row[getIndex(ColumnMapping.payment)]),
+            rent: toNumber(row[getIndex(ColumnMapping.rent)]),
+            waterbill: toNumber(row[getIndex(ColumnMapping.waterbill)]),
+            previous_month_bijli_unit: toNumber(row[getIndex(ColumnMapping.previous_month_bijli_unit)]),
+            current_month_bijli_unit: toNumber(row[getIndex(ColumnMapping.current_month_bijli_unit)]),
+            bijli_unit: toNumber(row[getIndex(ColumnMapping.bijli_unit)]),
+            bijli_unit_price: toNumber(row[getIndex(ColumnMapping.bijli_unit_price)]),
+            due: toNumber(row[getIndex(ColumnMapping.due)]),
+            month: toString(row[getIndex(ColumnMapping.month)]),
+            year: toNumber(row[getIndex(ColumnMapping.year)]),
+            payment1_date: toString(row[getIndex(ColumnMapping.payment1_date)]),
+            payment1_payment: toNumber(row[getIndex(ColumnMapping.payment1_payment)]),
+            payment2_date: toString(row[getIndex(ColumnMapping.payment2_date)]),
+            payment2_payment: toNumber(row[getIndex(ColumnMapping.payment2_payment)]),
+            payment3_date: toString(row[getIndex(ColumnMapping.payment3_date)]),
+            payment3_payment: toNumber(row[getIndex(ColumnMapping.payment3_payment)]),
+        }));
+
         return { list: result };
     }
 
-    async getDetailById(id: string) {
-        const sheet = this.doc.sheetsById[id];
-        if (sheet) {
-            const rows = await sheet.getRows();
-            const result = rows.map<IUserInfo>((r: any) => ({
-                serial: toNumber(r.get(ColumnMapping.serial)),
-                payment: toNumber(r.get(ColumnMapping.payment)),
-                rent: toNumber(r.get(ColumnMapping.rent)),
-                waterbill: toNumber(r.get(ColumnMapping.waterbill)),
-                previous_month_bijli_unit: toNumber(r.get(ColumnMapping.previous_month_bijli_unit)),
-                current_month_bijli_unit: toNumber(r.get(ColumnMapping.current_month_bijli_unit)),
-                bijli_unit: toNumber(r.get(ColumnMapping.bijli_unit)),
-                bijli_unit_price: toNumber(r.get(ColumnMapping.bijli_unit_price)),
-                due: toNumber(r.get(ColumnMapping.due)),
-                month: toString(r.get(ColumnMapping.month)),
-                year: toNumber(r.get(ColumnMapping.year)),
-                payment1_date: toString(r.get(ColumnMapping.payment1_date)),
-                payment1_payment: toNumber(r.get(ColumnMapping.payment1_payment)),
-                payment2_date: toString(r.get(ColumnMapping.payment2_date)),
-                payment2_payment: toNumber(r.get(ColumnMapping.payment2_payment)),
-                payment3_date: toString(r.get(ColumnMapping.payment3_date)),
-                payment3_payment: toNumber(r.get(ColumnMapping.payment3_payment)),
-            }));
-
-            return {
-                list: result
-            }
-        }
-    }
 
     async addOrUpdateRecord(payload: SheetPayloadForRecordDto) {
+        await this.ready();
+
         const { sheetid, data } = payload;
+        const sheetTitle = await this.getSheetTitleById(sheetid);
+        const res = await this.sheets.spreadsheets.values.get({
+            spreadsheetId: this.spreadsheetId,
+            range: `${sheetTitle}!A1:Z1000`,
+        });
 
-        const sheet = this.doc.sheetsById[sheetid];
-        if (!sheet) throw new Error("Invalid sheet id");
+        const rows = res.data.values ?? [];
+        if (rows.length === 0) throw new Error('Sheet has no header row');
 
-        await sheet.loadHeaderRow();
-        const rows = await sheet.getRows();
+        const headers = rows[0];
+        const serialIndex = headers.indexOf(ColumnMapping.serial);
 
-        const serialColumn = ColumnMapping.serial;
-        const existingRow = rows.find(
-            (r: any) => Number(r.get(serialColumn)) === Number(data.serial)
+        if (serialIndex === -1) throw new Error('Serial column not found');
+
+
+        const rowIndex = rows.findIndex(
+            (r, i) => i > 0 && Number(r[serialIndex]) === Number(data.serial)
         );
 
-        if (existingRow) {
-            Object.entries(ColumnMapping).forEach(([key, column]) => {
-                existingRow.set(column as string, (data as any)[key]);
+        const rowValues = headers.map(h => (data as any)[Object.keys(ColumnMapping)
+            .find(k => ColumnMapping[k] === h) ?? ''] ?? '');
+
+
+        if (rowIndex !== -1) {
+            const range = `${sheetTitle}!A${rowIndex + 1}`;
+
+            await this.sheets.spreadsheets.values.update({
+                spreadsheetId: this.spreadsheetId,
+                range,
+                valueInputOption: 'USER_ENTERED',
+                requestBody: { values: [rowValues] },
             });
 
-            await existingRow.save();
-            return { message: "Row updated successfully" };
+            return { message: 'Row updated successfully' };
         }
-        const newRow = Object.fromEntries(
-            Object.entries(ColumnMapping).map(([key, column]) => [
-                column,
-                (data as any)[key],
-            ])
-        );
 
-        await sheet.addRow(newRow);
-        return { message: "Row created successfully" };
+        await this.sheets.spreadsheets.values.append({
+            spreadsheetId: this.spreadsheetId,
+            range: `${sheetTitle}!A:Z`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: { values: [rowValues] },
+        });
+
+        return { message: 'Row created successfully' };
     }
+
 
     async deleteBySerial(sheetid: string, serial: string) {
-        const sheet = this.doc.sheetsById[sheetid];
-        if (!sheet) throw new Error("Invalid sheet id");
+        await this.ready();
+        const sheetTitle = await this.getSheetTitleById(sheetid);
+        const res = await this.sheets.spreadsheets.values.get({
+            spreadsheetId: this.spreadsheetId,
+            range: `${sheetTitle}!A1:Z1000`,
+        });
 
-        await sheet.loadHeaderRow();
-        const rows = await sheet.getRows();
+        const rows = res.data.values ?? [];
+        if (rows.length < 2) return { message: 'No data in sheet' };
 
-        const serialColumn = ColumnMapping.serial;
+        const headers = rows[0];
+        const serialIndex = headers.indexOf(ColumnMapping.serial);
 
-        const rowToDelete = rows.find(
-            (r: any) => Number(r.get(serialColumn)) === Number(serial)
+        if (serialIndex === -1) throw new Error('Serial column not found');
+
+        const dataIndex = rows.findIndex(
+            (r, i) => i > 0 && Number(r[serialIndex]) === Number(serial)
         );
 
-        if (!rowToDelete) {
-            return { message: "No record found with this serial" };
+        if (dataIndex === -1) {
+            return { message: 'No record found with this serial' };
         }
 
-        await rowToDelete.delete();
 
-        return { message: "Row deleted successfully" };
+        await this.sheets.spreadsheets.batchUpdate({
+            spreadsheetId: this.spreadsheetId,
+            requestBody: {
+                requests: [
+                    {
+                        deleteDimension: {
+                            range: {
+                                sheetId: Number(sheetid),
+                                dimension: 'ROWS',
+                                startIndex: dataIndex,
+                                endIndex: dataIndex + 1,
+                            },
+                        },
+                    },
+                ],
+            },
+        });
+
+        return { message: 'Row deleted successfully' };
     }
 
+
     async addPaymentStatus(paymentPayload: PaymentDto) {
+        await this.ready();
+
         const { sheetid, data } = paymentPayload;
         const { payment_amount, payment_date, payment_number, serial } = data;
 
-        const sheet = this.doc.sheetsById[sheetid];
-        if (!sheet) throw new Error("Invalid sheet id");
+        if (![1, 2, 3].includes(payment_number)) {
+            throw new Error('payment_number must be 1, 2, or 3');
+        }
 
-        await sheet.loadHeaderRow();
-        const rows = await sheet.getRows();
+        const sheetTitle = await  this.getSheetTitleById(sheetid);
+        const res = await this.sheets.spreadsheets.values.get({
+            spreadsheetId: this.spreadsheetId,
+            range: `${sheetTitle}!A1:Z1000`,
+        });
 
-        const rowToUpdate = rows.find(
-            (r: any) => Number(r.get(ColumnMapping.serial)) === Number(serial)
+        const rows = res.data.values ?? [];
+        if (rows.length < 2) return { message: 'No data in sheet' };
+
+        const headers = rows[0];
+        const serialIndex = headers.indexOf(ColumnMapping.serial);
+
+        if (serialIndex === -1) throw new Error('Serial column not found');
+
+        const rowIndex = rows.findIndex(
+            (r, i) => i > 0 && Number(r[serialIndex]) === Number(serial)
         );
 
-        if (!rowToUpdate) {
-            return { message: "No record found with this serial" };
+        if (rowIndex === -1) {
+            return { message: 'No record found with this serial' };
         }
 
-        if (![1, 2, 3].includes(payment_number)) {
-            throw new Error("payment_number must be 1, 2, or 3");
-        }
-
+     
         const dateKey = `payment${payment_number}_date` as keyof typeof ColumnMapping;
         const amountKey = `payment${payment_number}_payment` as keyof typeof ColumnMapping;
 
-        rowToUpdate.set(ColumnMapping[dateKey], payment_date);
-        rowToUpdate.set(ColumnMapping[amountKey], payment_amount);
+        const dateColIndex = headers.indexOf(ColumnMapping[dateKey]);
+        const amountColIndex = headers.indexOf(ColumnMapping[amountKey]);
 
-        await rowToUpdate.save();
+        if (dateColIndex === -1 || amountColIndex === -1) {
+            throw new Error('Payment columns not found');
+        }
+
+        const colToLetter = (col: number) =>
+            String.fromCharCode(65 + col);
+
+        const rowNumber = rowIndex + 1;
+
+        const updates = [
+            {
+                range: `${sheetTitle}!${colToLetter(dateColIndex)}${rowNumber}`,
+                values: [[payment_date]],
+            },
+            {
+                range: `${sheetTitle}!${colToLetter(amountColIndex)}${rowNumber}`,
+                values: [[payment_amount]],
+            },
+        ];
+
+        await this.sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: this.spreadsheetId,
+            requestBody: {
+                valueInputOption: 'USER_ENTERED',
+                data: updates,
+            },
+        });
 
         return { message: `Payment ${payment_number} updated successfully` };
     }
-
 
 }
